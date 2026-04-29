@@ -1,0 +1,157 @@
+/* ============================================
+   IVOIRE — DESIGN SYSTEM TOKENS  (v1.1 — yellow palette)
+   Fonte única da verdade. Use estas variáveis
+   em qualquer artefato (web, dashboard, slide).
+   ============================================ */
+
+/* Fontes Google: @import movido para src/app/globals.css (precisa
+   ficar no TOPO do CSS final por exigência do spec CSS). */
+
+:root {
+  /* ---------- COR — PALETA PRIMÁRIA OFICIAL IVOIRE ---------- */
+  /* Amarelo + Preto = identidade Ivoire (oficial PPTX) */
+  --ivo-yellow:       #FFFF02;
+  --ivo-yellow-deep:  #D9CC00;
+  --ivo-yellow-soft:  #FFFF8A;
+
+  --ivo-ink:          #282828;
+  --ivo-coal:         #1C1C1C;
+  --ivo-graphite:     #3E3E3E;
+
+  /* ---------- COR — SUPORTE NEUTRO ---------- */
+  --ivo-ivory:        #FAF8F2;
+  --ivo-ivory-soft:   #FCFBF7;
+  --ivo-ivory-deep:   #EFEAD8;
+
+  /* Aliases retrocompatíveis (todos apontam para amarelo) */
+  --ivo-ember:        #FFFF02;
+  --ivo-ember-deep:   #D9CC00;
+  --ivo-ember-soft:   #FFFF8A;
+
+  /* ---------- COR — NEUTROS ---------- */
+  --ivo-stone-900:    #282828;
+  --ivo-stone-700:    #3E3E3E;
+  --ivo-stone-500:    #595959;
+  --ivo-stone-300:    #999999;
+  --ivo-stone-100:    #D9D9D9;
+
+  /* ---------- COR — DATA / DASHBOARD ---------- */
+  --ivo-data-1: #FFFF02;
+  --ivo-data-2: #282828;
+  --ivo-data-3: #6E6E6E;
+  --ivo-data-4: #A8A8A8;
+  --ivo-data-5: #D9CC00;
+  --ivo-data-6: #3A3A3A;
+
+  --ivo-success: #2E7D4F;
+  --ivo-warning: #FFFF02;
+  --ivo-danger:  #282828;
+
+  /* ---------- TIPOGRAFIA ---------- */
+  --ivo-font-display: 'Major Mono Display', monospace;
+  --ivo-font-title:   'Montserrat', sans-serif;
+  --ivo-font-body:    'Arvo', serif;
+  --ivo-font-numeric: 'Bebas Neue', 'Montserrat', sans-serif;
+
+  --fs-100: 0.75rem;
+  --fs-200: 0.875rem;
+  --fs-300: 1rem;
+  --fs-400: 1.25rem;
+  --fs-500: 1.5625rem;
+  --fs-600: 1.953rem;
+  --fs-700: 2.441rem;
+  --fs-800: 3.052rem;
+  --fs-900: 4.768rem;
+  --fs-1000: 7.451rem;
+
+  --lh-tight:   1.05;
+  --lh-snug:    1.2;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.7;
+
+  --ls-display: -0.02em;
+  --ls-title:   -0.01em;
+  --ls-mono:    0.04em;
+  --ls-eyebrow: 0.18em;
+
+  /* ---------- ESPAÇAMENTO (escala 4px) ---------- */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  48px;
+  --sp-8:  64px;
+  --sp-9:  96px;
+  --sp-10: 128px;
+
+  /* ---------- LAYOUT ---------- */
+  --grid-max-content: 1280px;
+  --grid-gutter: 24px;
+  --grid-cols: 12;
+
+  --slide-w: 1920px;
+  --slide-h: 1080px;
+  --slide-margin-x: 96px;
+  --slide-margin-y: 80px;
+
+  /* ---------- BORDA / RAIO ---------- */
+  --radius-0: 0;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  --border-hair:       1px solid var(--ivo-ink);
+  --border-hair-light: 1px solid var(--ivo-stone-100);
+  --border-thick:      2px solid var(--ivo-ink);
+
+  --shadow-1: 0 1px 0 rgba(40,40,40,0.04);
+  --shadow-2: 0 8px 24px -8px rgba(40,40,40,0.12);
+  --shadow-3: 0 24px 48px -16px rgba(40,40,40,0.18);
+
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --t-fast: 120ms;
+  --t-med:  240ms;
+  --t-slow: 480ms;
+}
+
+/* ============================================
+   RESET MÍNIMO + PADRÕES DE BASE
+   ============================================ */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--ivo-font-body);
+  font-size: var(--fs-300);
+  line-height: var(--lh-normal);
+  color: var(--ivo-ink);
+  background: var(--ivo-ivory);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.theme-yellow { background: var(--ivo-yellow); color: var(--ivo-ink); }
+.theme-dark   { background: var(--ivo-ink);    color: var(--ivo-ivory); }
+.theme-dark a, .theme-dark h1, .theme-dark h2, .theme-dark h3 { color: var(--ivo-ivory); }
+
+a { color: inherit; text-decoration: none; }
+img, svg { display: block; max-width: 100%; }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--ivo-font-title);
+  font-weight: 700;
+  letter-spacing: var(--ls-title);
+  line-height: var(--lh-tight);
+  margin: 0;
+}
+
+/* ============================================
+   CLASSES UTILITÁRIAS DE TIPOGRAFIA
+   ============================================ */
+.t-display { font-family: var(--ivo-font-display); letter-spacing: var(--ls-mono); text-transform: lowercase; line-height: var(--lh-tight); }
+.t-title   { font-family: var(--ivo-font-title); }
+.t-body    { font-family: var(--ivo-font-body); }
+.t-eyebrow { font-family: var(--ivo-font-title); font-size: var(--fs-200); font-weight: 600; letter-spacing: var(--ls-eyebrow); text-transform: uppercase; }
+.t-caps    { text-transform: uppercase; letter-spacing: 0.04em; }
+.t-mono    { font-family: var(--ivo-font-display); letter-spacing: var(--ls-mono); }

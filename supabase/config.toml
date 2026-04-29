@@ -1,0 +1,5 @@
+project_id = "sennabrands-executive-dashboard"
+
+[api]
+enabled = true
+schemas = ["public"]

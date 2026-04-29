@@ -1,0 +1,100 @@
+/* ============================================
+   IVOIRE × SENNA BRANDS — globals.css
+   Importa tokens e expõe ao Tailwind v4
+   ============================================ */
+
+/* Fontes Ivoire — @import precisa ser a PRIMEIRA regra do CSS final.
+   Mantemos aqui (não em tokens.css) para satisfazer o spec CSS. */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Arvo:wght@400;700&family=Major+Mono+Display&family=Bebas+Neue&display=swap');
+
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+/* Tailwind v4 lê tokens via @theme — gera classes utilitárias */
+@theme {
+  /* Cores Ivoire */
+  --color-ivo-yellow:        var(--ivo-yellow);
+  --color-ivo-yellow-deep:   var(--ivo-yellow-deep);
+  --color-ivo-yellow-soft:   var(--ivo-yellow-soft);
+
+  --color-ivo-ink:           var(--ivo-ink);
+  --color-ivo-coal:          var(--ivo-coal);
+  --color-ivo-graphite:      var(--ivo-graphite);
+
+  --color-ivo-ivory:         var(--ivo-ivory);
+  --color-ivo-ivory-soft:    var(--ivo-ivory-soft);
+  --color-ivo-ivory-deep:    var(--ivo-ivory-deep);
+
+  --color-ivo-stone-100:     var(--ivo-stone-100);
+  --color-ivo-stone-300:     var(--ivo-stone-300);
+  --color-ivo-stone-500:     var(--ivo-stone-500);
+  --color-ivo-stone-700:     var(--ivo-stone-700);
+  --color-ivo-stone-900:     var(--ivo-stone-900);
+
+  --color-ivo-success:       var(--ivo-success);
+  --color-ivo-warning:       var(--ivo-warning);
+  --color-ivo-danger:        var(--ivo-danger);
+
+  /* Fontes Ivoire */
+  --font-display:            var(--ivo-font-display);
+  --font-title:              var(--ivo-font-title);
+  --font-body:               var(--ivo-font-body);
+  --font-numeric:            var(--ivo-font-numeric);
+
+  /* Raios — cantos vivos como padrão */
+  --radius-none:             0;
+  --radius-sm:               2px;
+  --radius:                  4px;
+  --radius-md:               4px;
+  --radius-lg:               8px;
+}
+
+/* Tema escuro institucional como padrão */
+html, body {
+  background: var(--ivo-ink);
+  color: var(--ivo-ivory);
+}
+
+body {
+  font-family: var(--ivo-font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--ivo-yellow);
+  color: var(--ivo-ink);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--ivo-ink); }
+::-webkit-scrollbar-thumb { background: var(--ivo-graphite); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: var(--ivo-stone-500); }
+
+/* ============================================
+   UTILITÁRIOS DE TIPOGRAFIA IVOIRE
+   ============================================ */
+.t-eyebrow {
+  font-family: var(--ivo-font-title);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ivo-stone-300);
+}
+
+.t-display-mono {
+  font-family: var(--ivo-font-display);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  line-height: 1.05;
+}
+
+.t-numeric {
+  font-family: var(--ivo-font-title);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
