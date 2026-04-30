@@ -22,6 +22,19 @@ export async function getTrafficDaily(daysBack = 30) {
   return data ?? []
 }
 
+export async function getTrafficHourly(daysBack = 7) {
+  const supabase = await createSupabaseServerClient()
+  const since = new Date()
+  since.setDate(since.getDate() - daysBack)
+  const { data, error } = await supabase
+    .from('traffic_hourly')
+    .select('*')
+    .gte('date_hour', since.toISOString())
+    .order('date_hour', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
 export async function getAcquisitionDaily(daysBack = 30) {
   const supabase = await createSupabaseServerClient()
   const { startDate, endDate } = dateRangeBack(daysBack)

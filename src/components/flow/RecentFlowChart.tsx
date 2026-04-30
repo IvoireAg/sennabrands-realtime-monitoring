@@ -15,11 +15,13 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
+import { useAnnotations } from '@/components/annotations/AnnotationsContext'
 
 type Point = {
   dateHour: string
@@ -33,7 +35,6 @@ const POLL_MS = 30_000
 const RATE_LIMIT_FALLBACK_MS = 60_000
 
 function formatHourLabel(dateHour: string): string {
-  // 'YYYYMMDDHH' -> 'HHh'
   if (dateHour.length < 10) return dateHour
   return `${dateHour.slice(8, 10)}h`
 }
@@ -45,6 +46,7 @@ export function RecentFlowChart() {
   const [retryAt, setRetryAt] = useState<number | null>(null)
   const [now, setNow] = useState<number>(() => Date.now())
   const [nextPollAt, setNextPollAt] = useState<number | null>(null)
+  const { annotations } = useAnnotations()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -112,6 +114,13 @@ export function RecentFlowChart() {
   const peak = series.reduce((m, p) => Math.max(m, p.sessions), 0)
   const empty = series.length === 0
 
+  // Annotations que caem dentro da janela mostrada (últimas 12h)
+  const visibleHours = new Set(series.map((p) => p.label))
+  const visibleAnnotations = annotations.filter((a) => {
+    const label = `${String(a.hour).padStart(2, '0')}h`
+    return visibleHours.has(label)
+  })
+
   const secondsToNext = nextPollAt
     ? Math.max(0, Math.ceil((nextPollAt - now) / 1000))
     : null
@@ -150,7 +159,7 @@ export function RecentFlowChart() {
         {data && !empty && (
           <div className="h-56 -mx-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <AreaChart data={series} margin={{ top: 24, right: 8, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="recentFlowGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#FFFF02" stopOpacity={0.6} />
@@ -184,6 +193,25 @@ export function RecentFlowChart() {
                   fill="url(#recentFlowGrad)"
                   isAnimationActive={false}
                 />
+                {visibleAnnotations.map((a) => {
+                  const xLabel = `${String(a.hour).padStart(2, '0')}h`
+                  return (
+                    <ReferenceLine
+                      key={a.id}
+                      x={xLabel}
+                      stroke="#FFFF02"
+                      strokeDasharray="4 3"
+                      strokeWidth={1.5}
+                      label={{
+                        value: a.label,
+                        position: 'top',
+                        fill: '#FFFF02',
+                        fontSize: 10,
+                        fontFamily: 'var(--ivo-font-title)',
+                      }}
+                    />
+                  )
+                })}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -195,7 +223,10 @@ export function RecentFlowChart() {
         )}
       </CardBody>
       <CardFooter className="flex items-center justify-between gap-4 flex-wrap">
-        <span>fonte: GA4 · dateHour · cache 30s</span>
+        <span>
+          fonte: GA4 · dateHour · cache 30s
+          {visibleAnnotations.length > 0 && ` · ${visibleAnnotations.length} marcador(es)`}
+        </span>
         <span className="flex items-center gap-3">
           {data && <span>total {fmtInt(total)} sessões</span>}
           {data && <span>sync {fmtRelativeTime(data.fetchedAt)}</span>}

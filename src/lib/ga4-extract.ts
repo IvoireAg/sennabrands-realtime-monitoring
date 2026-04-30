@@ -1,6 +1,7 @@
 import { ga4, PROPERTY_PATH } from './ga4'
 import type {
   TrafficDailyRow,
+  TrafficHourlyRow,
   DemographicsDailyRow,
   AcquisitionDailyRow,
   PagesDailyRow,
@@ -9,6 +10,62 @@ import type {
 type DateRange = { startDate: string; endDate: string }
 
 const num = (v: string | undefined | null) => Number(v ?? 0)
+
+/**
+ * Hourly traffic — agregado simplificado (apenas dateHour, sem dims adicionais).
+ * Schema traffic_hourly tem source/medium/channel/device/country como PK,
+ * preenchemos com placeholders pra manter unicidade por date_hour.
+ *
+ * Timezone: GA4 retorna dateHour no fuso do property (Brasil/BRT). Convertemos
+ * pra ISO com offset -03:00 e armazenamos em timestamptz (Postgres normaliza
+ * pra UTC internamente). Quando ler de volta com new Date(), browser brasileiro
+ * mostra hora correta.
+ */
+export async function extractTrafficHourly(range: DateRange): Promise<TrafficHourlyRow[]> {
+  const [resp] = await ga4().runReport({
+    property: PROPERTY_PATH,
+    dateRanges: [range],
+    dimensions: [{ name: 'dateHour' }],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'totalUsers' },
+      { name: 'newUsers' },
+      { name: 'screenPageViews' },
+      { name: 'conversions' },
+      { name: 'bounceRate' },
+      { name: 'averageSessionDuration' },
+    ],
+    orderBys: [{ dimension: { dimensionName: 'dateHour' } }],
+    limit: 5000,
+  })
+  return (resp.rows ?? [])
+    .map((r) => {
+      const d = r.dimensionValues?.[0]?.value ?? ''
+      if (d.length < 10) return null
+      const m = r.metricValues?.map((x) => x.value ?? '0') ?? []
+      // Construir Date no fuso BRT, depois converter pra ISO UTC
+      const dateBrt = new Date(
+        `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T${d.slice(8, 10)}:00:00-03:00`,
+      )
+      if (Number.isNaN(dateBrt.getTime())) return null
+      return {
+        date_hour: dateBrt.toISOString(),
+        source: '(direct)',
+        medium: '(none)',
+        channel: '(other)',
+        device: 'desktop',
+        country: '__unknown__',
+        sessions: Math.round(num(m[0])),
+        users: Math.round(num(m[1])),
+        new_users: Math.round(num(m[2])),
+        pageviews: Math.round(num(m[3])),
+        conversions: Math.round(num(m[4])),
+        bounce_rate: num(m[5]),
+        avg_session_duration: num(m[6]),
+      } satisfies TrafficHourlyRow
+    })
+    .filter((x): x is TrafficHourlyRow => x !== null)
+}
 
 export async function extractTrafficDaily(range: DateRange): Promise<TrafficDailyRow[]> {
   const [resp] = await ga4().runReport({

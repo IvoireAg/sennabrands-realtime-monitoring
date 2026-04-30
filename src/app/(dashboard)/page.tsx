@@ -4,13 +4,16 @@ import { KPICard } from '@/components/kpi/KPICard'
 import { HealthBadge } from '@/components/health/HealthBadge'
 import { PulseStrip } from '@/components/pulse/PulseStrip'
 import { RecentFlowChart } from '@/components/flow/RecentFlowChart'
-import { WeekHeatmapStrip } from '@/components/heatmap/WeekHeatmapStrip'
+import { WeekHeatmap2D } from '@/components/heatmap/WeekHeatmap2D'
 import { CalendarHeatmap30d } from '@/components/heatmap/CalendarHeatmap30d'
 import { TopSourceMediumCard } from '@/components/acquisition/TopSourceMediumCard'
 import { TopCitiesCard } from '@/components/demographics/TopCitiesCard'
 import { EventFunnel } from '@/components/funnel/EventFunnel'
+import { EventVsBaselineCard } from '@/components/comparison/EventVsBaselineCard'
+import { AnnotationsManager } from '@/components/annotations/AnnotationsManager'
 import {
   getTrafficDaily,
+  getTrafficHourly,
   getAcquisitionDaily,
   getDemographicsDaily,
   getEventsDaily,
@@ -34,38 +37,46 @@ function aggregate(rows: Awaited<ReturnType<typeof getTrafficDaily>>) {
   )
 }
 
-function aggregateSessionsByDate(
-  rows: Awaited<ReturnType<typeof getTrafficDaily>>,
-): { date: string; sessions: number }[] {
-  const m = new Map<string, number>()
-  for (const r of rows) {
-    m.set(r.date, (m.get(r.date) ?? 0) + Number(r.sessions || 0))
-  }
-  return Array.from(m.entries())
-    .map(([date, sessions]) => ({ date, sessions }))
-    .sort((a, b) => a.date.localeCompare(b.date))
-}
-
 export default async function ResumoGeralPage() {
-  const [last7Traffic, last30Traffic, acquisition7, demographics7, events7, lastIngestion] =
-    await Promise.all([
-      getTrafficDaily(7),
-      getTrafficDaily(30),
-      getAcquisitionDaily(7),
-      getDemographicsDaily(7),
-      getEventsDaily(7),
-      getLastIngestion(),
-    ])
+  const [
+    last7Traffic,
+    last30Traffic,
+    last7Hourly,
+    acquisition7,
+    demographics7,
+    events7,
+    lastIngestion,
+  ] = await Promise.all([
+    getTrafficDaily(7),
+    getTrafficDaily(30),
+    getTrafficHourly(7),
+    getAcquisitionDaily(7),
+    getDemographicsDaily(7),
+    getEventsDaily(7),
+    getLastIngestion(),
+  ])
 
   const a7 = aggregate(last7Traffic)
   const a30 = aggregate(last30Traffic)
   const prev7 = a30.sessions - a7.sessions
   const deltaSessions = prev7 > 0 ? (a7.sessions - prev7) / prev7 : null
 
-  const series7 = aggregateSessionsByDate(last7Traffic)
-  const series30 = aggregateSessionsByDate(last30Traffic)
-
   const noData = a30.sessions === 0
+
+  // Traffic30 já agregado por dia para o EventVsBaselineCard e CalendarHeatmap30d
+  const dailyAggregated = (() => {
+    const m = new Map<string, { sessions: number; users: number; pageviews: number }>()
+    for (const r of last30Traffic) {
+      const cur = m.get(r.date) ?? { sessions: 0, users: 0, pageviews: 0 }
+      cur.sessions += Number(r.sessions || 0)
+      cur.users += Number(r.users || 0)
+      cur.pageviews += Number(r.pageviews || 0)
+      m.set(r.date, cur)
+    }
+    return Array.from(m.entries())
+      .map(([date, v]) => ({ date, ...v }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+  })()
 
   return (
     <>
@@ -82,7 +93,7 @@ export default async function ResumoGeralPage() {
         <RealtimePanel />
       </section>
 
-      {/* Bloco 2 — Fluxo últimas 12h (posição privilegiada logo abaixo do realtime) */}
+      {/* Bloco 2 — Fluxo últimas 12h (com anotações) */}
       <section className="mb-8">
         <RecentFlowChart />
       </section>
@@ -131,23 +142,29 @@ export default async function ResumoGeralPage() {
         </div>
       </section>
 
-      {/* Bloco 5 — Heatmap semanal 7 células */}
+      {/* Bloco 5 — Heatmap semanal 7×4 (28 células reais) */}
       <section className="mb-8">
-        <WeekHeatmapStrip data={series7} />
+        <WeekHeatmap2D rows={last7Hourly} />
       </section>
 
-      {/* Bloco 6 — Top source/medium + Top cidades (lado a lado) */}
+      {/* Bloco 6 — Comparativo evento vs baseline 30d */}
+      <section className="mb-8">
+        <EventVsBaselineCard traffic30={dailyAggregated} />
+      </section>
+
+      {/* Bloco 7 — Top source/medium + Top cidades (lado a lado) */}
       <section className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TopSourceMediumCard rows={acquisition7} limit={5} />
         <TopCitiesCard rows={demographics7} limit={5} />
       </section>
 
-      {/* Bloco 7 — Funil de eventos */}
-      <section className="mb-8">
+      {/* Bloco 8 — Funil de eventos + Anotações (lado a lado) */}
+      <section className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <EventFunnel events={events7} />
+        <AnnotationsManager />
       </section>
 
-      {/* Bloco 8 — KPIs 30d */}
+      {/* Bloco 9 — KPIs 30d */}
       <section className="mb-8">
         <div className="t-eyebrow mb-2">Últimos 30 dias</div>
         <h2 className="font-title font-bold text-2xl text-ivo-ivory mb-4">Visão mensal</h2>
@@ -179,9 +196,9 @@ export default async function ResumoGeralPage() {
         </div>
       </section>
 
-      {/* Bloco 9 — Calendar heatmap 30d + sparkline */}
+      {/* Bloco 10 — Calendar heatmap 30d + sparkline */}
       <section>
-        <CalendarHeatmap30d data={series30} />
+        <CalendarHeatmap30d data={dailyAggregated} />
       </section>
     </>
   )

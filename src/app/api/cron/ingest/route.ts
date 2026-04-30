@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createSupabaseAdminClient } from '@/lib/supabase/server'
 import {
   extractTrafficDaily,
+  extractTrafficHourly,
   extractDemographicsDaily,
   extractAcquisitionDaily,
   extractPagesDaily,
@@ -104,6 +105,15 @@ export async function GET(request: NextRequest) {
     (rows) => supabase.from('traffic_daily').upsert(rows, { onConflict: 'date,channel,source,medium,device' }),
   )
 
+  // traffic_hourly: rolling window curto (default 14d) — sufficient pra heatmap semanal 7×4
+  // e fluxo near-realtime. Ingere a cada cron run (15min) sobrescrevendo via upsert.
+  const hourlyRange = dateRange(Math.min(days, 14))
+  results.traffic_hourly = await runStep(
+    'traffic_hourly',
+    () => extractTrafficHourly(hourlyRange),
+    (rows) => supabase.from('traffic_hourly').upsert(rows, { onConflict: 'date_hour,source,medium,device,country' }),
+  )
+
   results.demographics_daily = await runStep(
     'demographics_daily',
     () => extractDemographicsDaily(range),
@@ -136,7 +146,7 @@ export async function GET(request: NextRequest) {
     0,
   )
   const errored = Object.entries(results).filter(([, r]) => !r.ok).map(([k]) => k)
-  const status = errored.length === 0 ? 'success' : errored.length < 5 ? 'partial' : 'error'
+  const status = errored.length === 0 ? 'success' : errored.length < 6 ? 'partial' : 'error'
 
   if (logId) {
     await supabase
