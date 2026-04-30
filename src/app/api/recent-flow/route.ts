@@ -108,11 +108,13 @@ export async function GET() {
       limit: 100,
     })
 
+    // Math.round nas métricas: GA4 às vezes retorna decimais por sampling
+    // em volumes baixos. Display deve ser consistente com cards (inteiros).
     const allPoints: RecentFlowPoint[] = (resp.rows ?? []).map((r) => ({
       dateHour: r.dimensionValues?.[0]?.value ?? '',
-      sessions: Number(r.metricValues?.[0]?.value ?? 0),
-      users: Number(r.metricValues?.[1]?.value ?? 0),
-      pageviews: Number(r.metricValues?.[2]?.value ?? 0),
+      sessions: Math.round(Number(r.metricValues?.[0]?.value ?? 0)),
+      users: Math.round(Number(r.metricValues?.[1]?.value ?? 0)),
+      pageviews: Math.round(Number(r.metricValues?.[2]?.value ?? 0)),
     }))
 
     // Pegamos os últimos HOURS_BACK pontos (já ordenados ascending pelo orderBys).

@@ -62,10 +62,15 @@ export function EventFunnel({ events }: Props) {
                   <div className="flex-1 relative h-9 bg-ivo-ink/40 overflow-hidden rounded-sm">
                     <div
                       className="absolute inset-y-0 left-0 bg-ivo-yellow transition-all"
-                      style={{ width: `${Math.max(widthPct, 1)}%` }}
+                      style={{ width: `${Math.max(widthPct, 8)}%` }}
                     />
-                    <div className="absolute inset-0 flex items-center px-3">
+                    <div className="absolute inset-0 flex items-center px-3 gap-3">
                       <span className="t-numeric text-ivo-ink font-bold text-sm">{fmtInt(s.users)}</span>
+                      {widthPct < 12 && s.users > 0 && (
+                        <span className="text-[10px] text-ivo-stone-300 font-title">
+                          {fmtPct(widthPct / 100)} do topo
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="w-24 shrink-0 text-right">

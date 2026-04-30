@@ -7,6 +7,22 @@ export type RealtimeSnapshot = {
   fetchedAt: string
 }
 
+export type TrafficHourlyRow = {
+  date_hour: string
+  source: string
+  medium: string
+  channel: string
+  device: string
+  country: string
+  sessions: number
+  users: number
+  new_users: number
+  pageviews: number
+  conversions: number
+  bounce_rate: number
+  avg_session_duration: number
+}
+
 export type TrafficDailyRow = {
   date: string
   channel: string

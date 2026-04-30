@@ -118,12 +118,16 @@ export async function GET() {
       users: number
       pageviews: number
     }
+    // GA4 às vezes retorna métricas com decimais por causa de sampling em
+    // volumes baixos. Pra display consistente com cards (Math.round na UI),
+    // arredondamos no parsing — evita delta tipo +87.5% calculado sobre
+    // valores fracionários que aparecem no UI como inteiros.
     const points: Point[] = (resp.rows ?? []).map((r) => ({
       date: r.dimensionValues?.[0]?.value ?? '',
       hour: Number(r.dimensionValues?.[1]?.value ?? 0),
-      sessions: Number(r.metricValues?.[0]?.value ?? 0),
-      users: Number(r.metricValues?.[1]?.value ?? 0),
-      pageviews: Number(r.metricValues?.[2]?.value ?? 0),
+      sessions: Math.round(Number(r.metricValues?.[0]?.value ?? 0)),
+      users: Math.round(Number(r.metricValues?.[1]?.value ?? 0)),
+      pageviews: Math.round(Number(r.metricValues?.[2]?.value ?? 0)),
     }))
 
     // Heurística robusta a timezone: o "agora" é o (date, hour) máximo
