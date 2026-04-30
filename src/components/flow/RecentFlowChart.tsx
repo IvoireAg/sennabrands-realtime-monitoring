@@ -22,6 +22,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useAnnotations } from '@/components/annotations/AnnotationsContext'
+import { usePollingPace } from '@/hooks/usePollingPace'
 
 type Point = {
   dateHour: string
@@ -31,7 +32,8 @@ type Point = {
 }
 type Response = { points: Point[]; fetchedAt: string }
 
-const POLL_MS = 30_000
+const POLL_ACTIVE_MS = 30_000
+const POLL_IDLE_MS = 90_000
 const RATE_LIMIT_FALLBACK_MS = 60_000
 
 function formatHourLabel(dateHour: string): string {
@@ -47,12 +49,27 @@ export function RecentFlowChart() {
   const [now, setNow] = useState<number>(() => Date.now())
   const [nextPollAt, setNextPollAt] = useState<number | null>(null)
   const { annotations } = useAnnotations()
+  const { getNextDelay, onVisible } = usePollingPace({
+    activeMs: POLL_ACTIVE_MS,
+    idleMs: POLL_IDLE_MS,
+  })
 
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
-    let backoff = POLL_MS
+    let backoff = POLL_ACTIVE_MS
+
+    function scheduleNext(fallbackMs: number) {
+      const delay = getNextDelay()
+      if (delay === null) {
+        setNextPollAt(null)
+        return
+      }
+      const realDelay = delay > 0 ? delay : fallbackMs
+      setNextPollAt(Date.now() + realDelay)
+      timer = setTimeout(fetchOnce, realDelay)
+    }
 
     async function fetchOnce() {
       try {
@@ -70,7 +87,7 @@ export function RecentFlowChart() {
           setRetryAt(Date.now() + wait)
           setError(null)
           setLoading(false)
-          backoff = POLL_MS
+          backoff = POLL_ACTIVE_MS
           timer = setTimeout(fetchOnce, wait)
           return
         }
@@ -81,25 +98,30 @@ export function RecentFlowChart() {
         setError(null)
         setRetryAt(null)
         setLoading(false)
-        backoff = POLL_MS
-        setNextPollAt(Date.now() + POLL_MS)
-        timer = setTimeout(fetchOnce, POLL_MS)
+        backoff = POLL_ACTIVE_MS
+        scheduleNext(POLL_ACTIVE_MS)
       } catch (e) {
         if (cancelled) return
         if (e instanceof DOMException && e.name === 'AbortError') return
         setError(e instanceof Error ? e.message : 'erro desconhecido')
         setLoading(false)
-        backoff = Math.min(backoff * 2, 60_000)
-        timer = setTimeout(fetchOnce, backoff)
+        backoff = Math.min(backoff * 2, 90_000)
+        scheduleNext(backoff)
       }
     }
     fetchOnce()
+    const unsubVis = onVisible(() => {
+      if (cancelled) return
+      if (timer) clearTimeout(timer)
+      fetchOnce()
+    })
     return () => {
       cancelled = true
       controller.abort()
       if (timer) clearTimeout(timer)
+      unsubVis()
     }
-  }, [])
+  }, [getNextDelay, onVisible])
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
@@ -128,6 +150,15 @@ export function RecentFlowChart() {
 
   return (
     <Card>
+      {retryAt && data && (
+        <div className="px-4 py-2 border-b border-ivo-yellow/40 bg-ivo-coal text-xs font-title flex items-center justify-between gap-3">
+          <span className="t-eyebrow text-ivo-yellow">limite GA4 — modo cacheado</span>
+          <span className="text-ivo-stone-300">
+            mostrando última leitura · próxima em{' '}
+            <span className="t-numeric text-ivo-ivory">{retryIn}s</span>
+          </span>
+        </div>
+      )}
       <CardHeader>
         <div>
           <CardEyebrow>Últimas 12 horas · 1h por ponto</CardEyebrow>
@@ -224,13 +255,17 @@ export function RecentFlowChart() {
       </CardBody>
       <CardFooter className="flex items-center justify-between gap-4 flex-wrap">
         <span>
-          fonte: GA4 · dateHour · cache 30s
+          fonte: GA4 · dateHour · cache 30s · poll adaptativo
           {visibleAnnotations.length > 0 && ` · ${visibleAnnotations.length} marcador(es)`}
         </span>
         <span className="flex items-center gap-3">
           {data && <span>total {fmtInt(total)} sessões</span>}
           {data && <span>sync {fmtRelativeTime(data.fetchedAt)}</span>}
-          {secondsToNext !== null && <span>próx. em {secondsToNext}s</span>}
+          {secondsToNext !== null ? (
+            <span>próx. em {secondsToNext}s</span>
+          ) : (
+            <span className="text-ivo-stone-500">aba oculta</span>
+          )}
         </span>
       </CardFooter>
     </Card>

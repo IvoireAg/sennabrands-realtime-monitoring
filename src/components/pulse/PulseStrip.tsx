@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import { fmtInt, fmtPct } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { usePollingPace } from '@/hooks/usePollingPace'
 
 type PulseResponse = {
   hour: number
@@ -19,7 +20,8 @@ type PulseResponse = {
   fetchedAt: string
 }
 
-const POLL_MS = 60_000
+const POLL_ACTIVE_MS = 60_000
+const POLL_IDLE_MS = 180_000
 const RATE_LIMIT_FALLBACK_MS = 60_000
 
 export function PulseStrip() {
@@ -28,11 +30,26 @@ export function PulseStrip() {
   const [retryAt, setRetryAt] = useState<number | null>(null)
   const [now, setNow] = useState<number>(() => Date.now())
   const [nextPollAt, setNextPollAt] = useState<number | null>(null)
+  const { getNextDelay, onVisible } = usePollingPace({
+    activeMs: POLL_ACTIVE_MS,
+    idleMs: POLL_IDLE_MS,
+  })
 
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
+
+    function scheduleNext(fallbackMs: number) {
+      const delay = getNextDelay()
+      if (delay === null) {
+        setNextPollAt(null)
+        return
+      }
+      const realDelay = delay > 0 ? delay : fallbackMs
+      setNextPollAt(Date.now() + realDelay)
+      timer = setTimeout(fetchOnce, realDelay)
+    }
 
     async function fetchOnce() {
       try {
@@ -58,22 +75,27 @@ export function PulseStrip() {
         setData(json)
         setError(null)
         setRetryAt(null)
-        setNextPollAt(Date.now() + POLL_MS)
-        timer = setTimeout(fetchOnce, POLL_MS)
+        scheduleNext(POLL_ACTIVE_MS)
       } catch (e) {
         if (cancelled) return
         if (e instanceof DOMException && e.name === 'AbortError') return
         setError(e instanceof Error ? e.message : 'erro desconhecido')
-        timer = setTimeout(fetchOnce, POLL_MS)
+        scheduleNext(POLL_ACTIVE_MS)
       }
     }
     fetchOnce()
+    const unsubVis = onVisible(() => {
+      if (cancelled) return
+      if (timer) clearTimeout(timer)
+      fetchOnce()
+    })
     return () => {
       cancelled = true
       controller.abort()
       if (timer) clearTimeout(timer)
+      unsubVis()
     }
-  }, [])
+  }, [getNextDelay, onVisible])
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
@@ -112,6 +134,11 @@ export function PulseStrip() {
             limite GA4 — próxima em {retryIn}s
           </span>
         )}
+        {retryAt && data && (
+          <span className="text-[10px] text-ivo-yellow font-title shrink-0 border-l border-ivo-yellow/30 pl-3">
+            cacheado · retoma {retryIn}s
+          </span>
+        )}
 
         {data && (
           <div className="flex items-center gap-6 flex-wrap">
@@ -134,9 +161,13 @@ export function PulseStrip() {
         )}
 
         <div className="text-right shrink-0 min-w-[80px]">
-          {secondsToNext !== null && (
+          {secondsToNext !== null ? (
             <span className="text-[10px] text-ivo-stone-500 font-title">
               próx. em {secondsToNext}s
+            </span>
+          ) : (
+            <span className="text-[10px] text-ivo-stone-500 font-title">
+              aba oculta
             </span>
           )}
         </div>

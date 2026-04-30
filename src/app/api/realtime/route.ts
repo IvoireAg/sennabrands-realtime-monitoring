@@ -15,7 +15,7 @@ export const revalidate = 0
 // `globalThis` é usado para sobreviver ao HMR do Next dev (que re-avalia o
 // módulo e zeraria `let cache`).
 
-const CACHE_TTL_MS = 8_000
+const CACHE_TTL_MS = 15_000
 const RATE_LIMIT_COOLDOWN_MS = 60_000
 
 type CacheState =

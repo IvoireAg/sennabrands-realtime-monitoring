@@ -15,8 +15,10 @@ import {
   CartesianGrid,
 } from 'recharts'
 import { rechartsTooltipStyle } from '@/lib/chart-theme'
+import { usePollingPace } from '@/hooks/usePollingPace'
 
-const POLL_MS = 10_000
+const POLL_ACTIVE_MS = 15_000
+const POLL_IDLE_MS = 30_000
 const RATE_LIMIT_FALLBACK_MS = 60_000
 
 const deviceIcon: Record<string, typeof Monitor> = {
@@ -31,14 +33,24 @@ export function RealtimePanel() {
   const [loading, setLoading] = useState(true)
   const [retryAt, setRetryAt] = useState<number | null>(null)
   const [now, setNow] = useState<number>(() => Date.now())
+  const { getNextDelay, onVisible } = usePollingPace({
+    activeMs: POLL_ACTIVE_MS,
+    idleMs: POLL_IDLE_MS,
+  })
 
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
-    // Backoff exponencial em erro 5xx genérico: 10s → 20s → 40s → 60s.
-    // Reseta para POLL_MS no primeiro sucesso.
-    let errorBackoffMs = POLL_MS
+    // Backoff exponencial em erro 5xx genérico: 15s → 30s → 60s.
+    // Reseta para POLL_ACTIVE_MS no primeiro sucesso.
+    let errorBackoffMs = POLL_ACTIVE_MS
+
+    function scheduleNext(fallbackMs: number) {
+      const delay = getNextDelay()
+      if (delay === null) return
+      timer = setTimeout(fetchOnce, delay > 0 ? delay : fallbackMs)
+    }
 
     async function fetchOnce() {
       try {
@@ -54,7 +66,9 @@ export function RealtimePanel() {
           setRetryAt(Date.now() + wait)
           setError(null)
           setLoading(false)
-          errorBackoffMs = POLL_MS
+          errorBackoffMs = POLL_ACTIVE_MS
+          // Cooldown server-side é "barato" (não bate em GA4), então respeitamos
+          // o wait pedido — mesmo se aba estiver oculta.
           timer = setTimeout(fetchOnce, wait)
           return
         }
@@ -65,24 +79,30 @@ export function RealtimePanel() {
         setError(null)
         setRetryAt(null)
         setLoading(false)
-        errorBackoffMs = POLL_MS
-        timer = setTimeout(fetchOnce, POLL_MS)
+        errorBackoffMs = POLL_ACTIVE_MS
+        scheduleNext(POLL_ACTIVE_MS)
       } catch (e) {
         if (cancelled) return
         if (e instanceof DOMException && e.name === 'AbortError') return
         setError(e instanceof Error ? e.message : 'erro desconhecido')
         setLoading(false)
         errorBackoffMs = Math.min(errorBackoffMs * 2, 60_000)
-        timer = setTimeout(fetchOnce, errorBackoffMs)
+        scheduleNext(errorBackoffMs)
       }
     }
     fetchOnce()
+    const unsubVis = onVisible(() => {
+      if (cancelled) return
+      if (timer) clearTimeout(timer)
+      fetchOnce()
+    })
     return () => {
       cancelled = true
       controller.abort()
       if (timer) clearTimeout(timer)
+      unsubVis()
     }
-  }, [])
+  }, [getNextDelay, onVisible])
 
   // Countdown — guarda Date.now() em state e re-calcula via setInterval.
   // Isso satisfaz duas regras do React 19: (a) Date.now() não é chamado durante
@@ -190,7 +210,7 @@ export function RealtimePanel() {
           </CardBody>
           <CardFooter className="border-ivo-ink/20 text-ivo-ink/60">
             <span>fonte: GA4 Realtime API</span>
-            <span>atualizado {fmtRelativeTime(data.fetchedAt)} · poll a cada 10s</span>
+            <span>atualizado {fmtRelativeTime(data.fetchedAt)} · poll adaptativo 15-30s</span>
           </CardFooter>
         </Card>
 
