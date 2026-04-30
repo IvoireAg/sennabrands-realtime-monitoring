@@ -2,6 +2,7 @@ import { ga4, PROPERTY_PATH } from './ga4'
 import type {
   TrafficDailyRow,
   TrafficHourlyRow,
+  Traffic30minRow,
   DemographicsDailyRow,
   AcquisitionDailyRow,
   PagesDailyRow,
@@ -65,6 +66,105 @@ export async function extractTrafficHourly(range: DateRange): Promise<TrafficHou
       } satisfies TrafficHourlyRow
     })
     .filter((x): x is TrafficHourlyRow => x !== null)
+}
+
+/**
+ * Tráfego em buckets de 30min — flat time-series sem breakdown por dimensão.
+ * Usado pelo export CSV pra monitoramento intra-dia do evento.
+ *
+ * GA4 dimension `dateHourMinute` retorna YYYYMMDDHHMM (12 chars). Server agrega
+ * por floor(minute/30) → buckets `:00` e `:30`. bounce_rate é média ponderada
+ * por sessions (mesma fórmula de extractPagesDaily).
+ *
+ * Timezone: GA4 retorna no fuso da property (BRT). Output usa offset -03:00
+ * fixo, mesmo padrão de extractTrafficHourly.
+ */
+export async function extractTraffic30min(range: DateRange): Promise<Traffic30minRow[]> {
+  const [resp] = await ga4().runReport({
+    property: PROPERTY_PATH,
+    dateRanges: [range],
+    dimensions: [{ name: 'dateHourMinute' }],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'totalUsers' },
+      { name: 'newUsers' },
+      { name: 'screenPageViews' },
+      { name: 'conversions' },
+      { name: 'bounceRate' },
+    ],
+    orderBys: [{ dimension: { dimensionName: 'dateHourMinute' } }],
+    limit: 50000,
+  })
+
+  type Bucket = {
+    timestamp: string
+    sessions: number
+    users: number
+    new_users: number
+    pageviews: number
+    conversions: number
+    bounce_weighted_sum: number
+    sessions_for_bounce: number
+  }
+  const buckets = new Map<string, Bucket>()
+
+  for (const r of resp.rows ?? []) {
+    const d = r.dimensionValues?.[0]?.value ?? ''
+    if (d.length < 12) continue
+    const m = r.metricValues?.map((x) => x.value ?? '0') ?? []
+
+    const yyyy = d.slice(0, 4)
+    const mm = d.slice(4, 6)
+    const dd = d.slice(6, 8)
+    const hh = d.slice(8, 10)
+    const minute = Number(d.slice(10, 12))
+    if (Number.isNaN(minute)) continue
+    const bb = minute < 30 ? '00' : '30'
+    const key = `${yyyy}${mm}${dd}${hh}${bb}`
+
+    const sessions = num(m[0])
+    const totalUsers = num(m[1])
+    const newUsers = num(m[2])
+    const pageviews = num(m[3])
+    const conversions = num(m[4])
+    const bounceRate = num(m[5])
+
+    const prev = buckets.get(key)
+    if (!prev) {
+      buckets.set(key, {
+        timestamp: `${yyyy}-${mm}-${dd}T${hh}:${bb}:00-03:00`,
+        sessions,
+        users: totalUsers,
+        new_users: newUsers,
+        pageviews,
+        conversions,
+        bounce_weighted_sum: bounceRate * sessions,
+        sessions_for_bounce: sessions,
+      })
+      continue
+    }
+    prev.sessions += sessions
+    prev.users += totalUsers
+    prev.new_users += newUsers
+    prev.pageviews += pageviews
+    prev.conversions += conversions
+    prev.bounce_weighted_sum += bounceRate * sessions
+    prev.sessions_for_bounce += sessions
+  }
+
+  return [...buckets.values()]
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+    .map((b) => ({
+      timestamp: b.timestamp,
+      sessions: Math.round(b.sessions),
+      users: Math.round(b.users),
+      new_users: Math.round(b.new_users),
+      pageviews: Math.round(b.pageviews),
+      conversions: Math.round(b.conversions),
+      bounce_rate: b.sessions_for_bounce
+        ? b.bounce_weighted_sum / b.sessions_for_bounce
+        : 0,
+    }))
 }
 
 export async function extractTrafficDaily(range: DateRange): Promise<TrafficDailyRow[]> {

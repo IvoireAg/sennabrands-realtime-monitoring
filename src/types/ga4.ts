@@ -72,3 +72,13 @@ export type PagesDailyRow = {
   exit_rate: number
   bounce_rate: number
 }
+
+export type Traffic30minRow = {
+  timestamp: string
+  sessions: number
+  users: number
+  new_users: number
+  pageviews: number
+  conversions: number
+  bounce_rate: number
+}

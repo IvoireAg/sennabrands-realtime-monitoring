@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Download } from 'lucide-react'
 
 const DATASETS = [
-  { key: 'traffic', label: 'Tráfego' },
+  { key: 'traffic', label: 'Tráfego (diário)' },
+  { key: 'traffic_30min', label: 'Tráfego (30min, live · até 7d)' },
   { key: 'acquisition', label: 'Aquisição' },
   { key: 'demographics', label: 'Demografia' },
   { key: 'events', label: 'Eventos' },

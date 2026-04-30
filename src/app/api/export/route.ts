@@ -6,12 +6,16 @@ import {
   getEventsDaily,
   getPagesDaily,
 } from '@/lib/queries'
+import { extractTraffic30min } from '@/lib/ga4-extract'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+export const maxDuration = 60
 
-const DATASETS = ['traffic', 'acquisition', 'demographics', 'events', 'pages'] as const
+const DATASETS = ['traffic', 'traffic_30min', 'acquisition', 'demographics', 'events', 'pages'] as const
 type Dataset = (typeof DATASETS)[number]
+
+const TRAFFIC_30MIN_MAX_DAYS = 7
 
 function toCSV(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return ''
@@ -46,12 +50,26 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const effectiveDays =
+    dataset === 'traffic_30min' ? Math.min(days, TRAFFIC_30MIN_MAX_DAYS) : days
+
   let rows: Record<string, unknown>[] = []
   try {
     switch (dataset) {
       case 'traffic':
         rows = (await getTrafficDaily(days)) as unknown as Record<string, unknown>[]
         break
+      case 'traffic_30min': {
+        const end = new Date()
+        const start = new Date(end)
+        start.setDate(start.getDate() - effectiveDays)
+        const fmt = (d: Date) => d.toISOString().slice(0, 10)
+        rows = (await extractTraffic30min({
+          startDate: fmt(start),
+          endDate: fmt(end),
+        })) as unknown as Record<string, unknown>[]
+        break
+      }
       case 'acquisition':
         rows = (await getAcquisitionDaily(days)) as unknown as Record<string, unknown>[]
         break
@@ -72,7 +90,7 @@ export async function GET(request: NextRequest) {
 
   const csv = toCSV(rows)
   const today = new Date().toISOString().slice(0, 10)
-  const filename = `senna-${dataset}-${days}d-${today}.csv`
+  const filename = `senna-${dataset}-${effectiveDays}d-${today}.csv`
 
   return new NextResponse(csv, {
     headers: {
