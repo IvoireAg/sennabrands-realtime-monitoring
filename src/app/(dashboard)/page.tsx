@@ -1,7 +1,21 @@
 import { PageHeader } from '@/components/shell/PageHeader'
 import { RealtimePanel } from '@/components/realtime/RealtimePanel'
 import { KPICard } from '@/components/kpi/KPICard'
-import { getTrafficDaily, getLastIngestion } from '@/lib/queries'
+import { HealthBadge } from '@/components/health/HealthBadge'
+import { PulseStrip } from '@/components/pulse/PulseStrip'
+import { RecentFlowChart } from '@/components/flow/RecentFlowChart'
+import { WeekHeatmapStrip } from '@/components/heatmap/WeekHeatmapStrip'
+import { CalendarHeatmap30d } from '@/components/heatmap/CalendarHeatmap30d'
+import { TopSourceMediumCard } from '@/components/acquisition/TopSourceMediumCard'
+import { TopCitiesCard } from '@/components/demographics/TopCitiesCard'
+import { EventFunnel } from '@/components/funnel/EventFunnel'
+import {
+  getTrafficDaily,
+  getAcquisitionDaily,
+  getDemographicsDaily,
+  getEventsDaily,
+  getLastIngestion,
+} from '@/lib/queries'
 import { fmtInt, fmtPct, fmtDuration } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
@@ -20,17 +34,36 @@ function aggregate(rows: Awaited<ReturnType<typeof getTrafficDaily>>) {
   )
 }
 
-export default async function ResumoGeralPage() {
-  const [last7, last30, lastIngestion] = await Promise.all([
-    getTrafficDaily(7),
-    getTrafficDaily(30),
-    getLastIngestion(),
-  ])
+function aggregateSessionsByDate(
+  rows: Awaited<ReturnType<typeof getTrafficDaily>>,
+): { date: string; sessions: number }[] {
+  const m = new Map<string, number>()
+  for (const r of rows) {
+    m.set(r.date, (m.get(r.date) ?? 0) + Number(r.sessions || 0))
+  }
+  return Array.from(m.entries())
+    .map(([date, sessions]) => ({ date, sessions }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
 
-  const a7 = aggregate(last7)
-  const a30 = aggregate(last30)
+export default async function ResumoGeralPage() {
+  const [last7Traffic, last30Traffic, acquisition7, demographics7, events7, lastIngestion] =
+    await Promise.all([
+      getTrafficDaily(7),
+      getTrafficDaily(30),
+      getAcquisitionDaily(7),
+      getDemographicsDaily(7),
+      getEventsDaily(7),
+      getLastIngestion(),
+    ])
+
+  const a7 = aggregate(last7Traffic)
+  const a30 = aggregate(last30Traffic)
   const prev7 = a30.sessions - a7.sessions
   const deltaSessions = prev7 > 0 ? (a7.sessions - prev7) / prev7 : null
+
+  const series7 = aggregateSessionsByDate(last7Traffic)
+  const series30 = aggregateSessionsByDate(last30Traffic)
 
   const noData = a30.sessions === 0
 
@@ -41,33 +74,32 @@ export default async function ResumoGeralPage() {
         title="Monitoramento em tempo real"
         display="o que está acontecendo agora"
         description="Painel master do site ayrtonsenna.com.br. Tráfego ao vivo + leitura dos últimos 7 e 30 dias."
-        actions={
-          lastIngestion && (
-            <div className="text-right">
-              <div className="t-eyebrow text-ivo-stone-300">última sincronização</div>
-              <div className="font-title text-sm text-ivo-ivory">
-                {new Date(lastIngestion.finished_at).toLocaleString('pt-BR')}
-              </div>
-            </div>
-          )
-        }
+        actions={<HealthBadge lastSyncedAt={lastIngestion?.finished_at ?? null} />}
       />
 
-      {/* Bloco realtime */}
-      <section className="mb-10">
+      {/* Bloco 1 — Realtime: usuários ativos agora + top países + top páginas etc. */}
+      <section className="mb-8">
         <RealtimePanel />
       </section>
 
-      {/* Bloco últimos 7 dias */}
-      <section className="mb-10">
+      {/* Bloco 2 — Fluxo últimas 12h (posição privilegiada logo abaixo do realtime) */}
+      <section className="mb-8">
+        <RecentFlowChart />
+      </section>
+
+      {/* Bloco 3 — Pulse: hora atual vs ontem mesma hora */}
+      <section className="mb-8">
+        <PulseStrip />
+      </section>
+
+      {/* Bloco 4 — KPIs 7d */}
+      <section className="mb-8">
         <div className="flex items-baseline justify-between mb-4">
           <div>
             <div className="t-eyebrow">Últimos 7 dias</div>
             <h2 className="font-title font-bold text-2xl text-ivo-ivory">Acumulado da semana</h2>
           </div>
-          {noData && (
-            <span className="t-eyebrow text-ivo-yellow">aguardando 1ª sincronização</span>
-          )}
+          {noData && <span className="t-eyebrow text-ivo-yellow">aguardando 1ª sincronização</span>}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
@@ -99,14 +131,45 @@ export default async function ResumoGeralPage() {
         </div>
       </section>
 
-      {/* Bloco últimos 30 dias */}
-      <section>
+      {/* Bloco 5 — Heatmap semanal 7 células */}
+      <section className="mb-8">
+        <WeekHeatmapStrip data={series7} />
+      </section>
+
+      {/* Bloco 6 — Top source/medium + Top cidades (lado a lado) */}
+      <section className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TopSourceMediumCard rows={acquisition7} limit={5} />
+        <TopCitiesCard rows={demographics7} limit={5} />
+      </section>
+
+      {/* Bloco 7 — Funil de eventos */}
+      <section className="mb-8">
+        <EventFunnel events={events7} />
+      </section>
+
+      {/* Bloco 8 — KPIs 30d */}
+      <section className="mb-8">
         <div className="t-eyebrow mb-2">Últimos 30 dias</div>
         <h2 className="font-title font-bold text-2xl text-ivo-ivory mb-4">Visão mensal</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard label="Sessões" value={fmtInt(a30.sessions)} source="GA4 Reporting API" lastSyncedAt={lastIngestion?.finished_at} />
-          <KPICard label="Usuários" value={fmtInt(a30.users)} source="GA4 Reporting API" lastSyncedAt={lastIngestion?.finished_at} />
-          <KPICard label="Pageviews" value={fmtInt(a30.pageviews)} source="GA4 Reporting API" lastSyncedAt={lastIngestion?.finished_at} />
+          <KPICard
+            label="Sessões"
+            value={fmtInt(a30.sessions)}
+            source="GA4 Reporting API"
+            lastSyncedAt={lastIngestion?.finished_at}
+          />
+          <KPICard
+            label="Usuários"
+            value={fmtInt(a30.users)}
+            source="GA4 Reporting API"
+            lastSyncedAt={lastIngestion?.finished_at}
+          />
+          <KPICard
+            label="Pageviews"
+            value={fmtInt(a30.pageviews)}
+            source="GA4 Reporting API"
+            lastSyncedAt={lastIngestion?.finished_at}
+          />
           <KPICard
             label="Duração média"
             value={a30.sessions ? fmtDuration(a30.durationWeighted / a30.sessions) : '—'}
@@ -114,6 +177,11 @@ export default async function ResumoGeralPage() {
             lastSyncedAt={lastIngestion?.finished_at}
           />
         </div>
+      </section>
+
+      {/* Bloco 9 — Calendar heatmap 30d + sparkline */}
+      <section>
+        <CalendarHeatmap30d data={series30} />
       </section>
     </>
   )
