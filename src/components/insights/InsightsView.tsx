@@ -41,17 +41,34 @@ export function InsightsView() {
   const [error, setError] = useState<ErrorBody | null>(null)
   const [loading, setLoading] = useState(false)
 
+  async function safeJson<T = unknown>(res: globalThis.Response): Promise<T | { error: string }> {
+    const text = await res.text()
+    try {
+      return JSON.parse(text) as T
+    } catch {
+      const snippet = text.slice(0, 200).trim()
+      return {
+        error:
+          res.status === 504
+            ? 'Timeout no servidor (504). Claude demorou mais que o limite. Tente novamente — geralmente segunda chamada vai mais rápido com prompt cache.'
+            : `Resposta inválida do servidor (HTTP ${res.status}): ${snippet || '(vazio)'}`,
+      }
+    }
+  }
+
   async function generate() {
     setLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/insights', { cache: 'no-store' })
-      const body = await res.json()
+      const body = await safeJson<Response & ErrorBody>(res)
       if (!res.ok) {
         setError(body as ErrorBody)
         setData(null)
-      } else {
+      } else if ('markdown' in body && body.markdown) {
         setData(body as Response)
+      } else {
+        setError({ error: 'resposta vazia do servidor' })
       }
     } catch (e) {
       setError({ error: e instanceof Error ? e.message : 'erro desconhecido' })
@@ -60,17 +77,15 @@ export function InsightsView() {
     }
   }
 
-  // Carrega cache existente se houver no mount (chamada GET retorna cache)
+  // Probe SOMENTE checa cache existente (não dispara geração).
   useEffect(() => {
     let cancelled = false
     async function probe() {
       try {
-        const res = await fetch('/api/insights', { cache: 'no-store' })
-        if (cancelled) return
-        if (res.ok) {
-          const body = await res.json()
-          if (body.markdown) setData(body as Response)
-        }
+        const res = await fetch('/api/insights?cacheOnly=1', { cache: 'no-store' })
+        if (cancelled || !res.ok || res.status === 204) return
+        const body = await safeJson<Response>(res)
+        if ('markdown' in body && body.markdown) setData(body as Response)
       } catch {
         // silently
       }

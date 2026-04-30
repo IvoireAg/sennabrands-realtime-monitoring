@@ -10,7 +10,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-export const maxDuration = 60
+export const maxDuration = 300
 
 const MODEL = 'claude-sonnet-4-6'
 const CACHE_TTL_MS = 5 * 60_000 // 5 minutos
@@ -84,10 +84,17 @@ Regras:
 - Foque em acionabilidade — análise sem recomendação não vale ser escrita
 - Markdown limpo, sem emojis decorativos`
 
-export async function GET() {
+export async function GET(req: Request) {
+  const url = new URL(req.url)
+  const cacheOnly = url.searchParams.get('cacheOnly') === '1'
+
   const cached = g.__insightsCache ?? null
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.data, { headers: { 'X-Cache': 'HIT' } })
+  }
+
+  if (cacheOnly) {
+    return NextResponse.json({ markdown: null }, { status: 204, headers: { 'X-Cache': 'EMPTY' } })
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
